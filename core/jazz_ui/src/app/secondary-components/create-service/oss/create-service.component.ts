@@ -6,7 +6,7 @@
 import { Http, Headers, Response } from '@angular/http';
 import { Component, Input, OnInit, Output, EventEmitter, NgModule } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
-import { ServiceFormData, RateExpression, CronObject, EventExpression } from '../service-form-data';
+import { ServiceFormData, RateExpression, CronObject, EventExpression, EventLabels } from '../service-form-data';
 import { FocusDirective } from '../focus.directive';
 import { CronParserService } from '../../../core/helpers';
 import { ToasterService} from 'angular2-toaster';
@@ -34,6 +34,9 @@ export class CreateServiceComponent implements OnInit {
   docs_link = env_oss.urls.docs_link;
   typeOfService:string = "api";
   typeOfPlatform:string = "aws";
+  isCSharpEnabled: boolean = false;
+  isPythonEnabled: boolean = true;
+  isJavaEnabled: boolean = false;
   disablePlatform = false;
   selected:string = "Minutes";
   runtime:string = 'nodejs';
@@ -69,12 +72,27 @@ export class CreateServiceComponent implements OnInit {
   focusindex:any = -1;
   scrollList:any = '';
   toast : any;
-
+  eventMaxLength:any = {
+    "stream_name":0,
+    "table_name":0,
+    "queue_name":0,
+    "bucket_name":0
+  };
+  serviceLimit:number;
+  domainLimit:number;
+  servicePatterns:any;
 
   model = new ServiceFormData('','','', '','','');
   cronObj = new CronObject('0/5','*','*','*','?','*')
   rateExpression = new RateExpression(undefined, undefined, 'none', '5', this.selected, '');
   eventExpression = new EventExpression("awsEventsNone",undefined,undefined,undefined,undefined);
+
+  eventLabels = new EventLabels("LAMBDA","DynamoDB", "Table ARN", "Kinesis", "Stream ARN" ,"S3", "Bucket ARN","SQS", "Queue ARN");
+  
+  azureEventLabels = new EventLabels("FUNCTION APP", "DocumentDB", "Table Name","Event Hubs", "Event Hub Name", "Storage", "Storage Instance Name","Batch Service Bus", "Service Bus Name");
+  
+  amazonEventLabels = new EventLabels("LAMBDA","DynamoDB", "Table ARN", "Kinesis", "Stream ARN" ,"S3", "Bucket ARN","SQS", "Queue ARN");
+  
   private doctors = [];
   private toastmessage:any;
   errBody: any;
@@ -82,6 +100,7 @@ export class CreateServiceComponent implements OnInit {
   errMessage: any;
   invalidServiceName:boolean=false;
   invalidDomainName:boolean=false;
+  invalidEventName:boolean = false;
 
 
   constructor (
@@ -148,7 +167,33 @@ export class CreateServiceComponent implements OnInit {
   changePlatformType(platformType){
     if(!this.disablePlatform){
       this.typeOfPlatform = platformType;
+      this.updateEventLabels(platformType);
+      this.updateEnabledRuntimes();
     }
+  }
+  
+  
+  updateEventLabels(platformType){
+  	if(platformType == "aws"){
+  	this.eventLabels = this.amazonEventLabels;
+  	}
+  	else if(platformType == "azure"){
+  	this.eventLabels = this.azureEventLabels;
+  	}
+  }
+  
+  
+  updateEnabledRuntimes(){
+  	if(this.typeOfPlatform == "azure"){
+  		this.isCSharpEnabled = true;
+  		this.isPythonEnabled = false;
+  		this.isJavaEnabled = false;
+  	}
+  	else{
+  		this.isCSharpEnabled = false;
+  		this.isPythonEnabled = true;
+  		this.isJavaEnabled = true;
+  	}
   }
 
   // function called on runtime change(radio)
@@ -164,6 +209,7 @@ export class CreateServiceComponent implements OnInit {
     }
   }
   onAWSEventChange(val){
+    this.invalidEventName = false;
     this.eventExpression.type = val;
     if(val !== `none`){
       this.rateExpression.type = 'none';
@@ -185,6 +231,12 @@ export class CreateServiceComponent implements OnInit {
 
   }
 
+  //function to validate event source names
+  validateEvents(value){
+    if(value != null && ((value[0] === '-' || value[value.length - 1] === '-') || (value[0] === '.' || value[value.length - 1] === '.') || (value[0] === '_' || value[value.length - 1] === '_'))){
+      this.invalidEventName = true;
+    }
+  }
   // function to validate slack channel
   public validateChannelName() {
 
@@ -517,6 +569,9 @@ export class CreateServiceComponent implements OnInit {
     if(this.invalidServiceName || this.invalidDomainName){
       return true
     }
+    if(this.invalidEventName){
+      return true
+    }
     return false;
   }
 
@@ -581,8 +636,20 @@ export class CreateServiceComponent implements OnInit {
     document.getElementById('approverName').focus();
   }
 
+  loadMaxLength(){
+    let maxEnvIfLength = 15;
+    this.serviceLimit = env_oss.charachterLimits.serviceName;
+    this.domainLimit = env_oss.charachterLimits.domainName;
+    this.eventMaxLength.stream_name = env_oss.charachterLimits.eventMaxLength.stream_name - maxEnvIfLength;
+    this.eventMaxLength.table_name = env_oss.charachterLimits.eventMaxLength.table_name - maxEnvIfLength;
+    this.eventMaxLength.queue_name = env_oss.charachterLimits.eventMaxLength.queue_name - maxEnvIfLength;
+    this.eventMaxLength.bucket_name = env_oss.charachterLimits.eventMaxLength.bucket_name - maxEnvIfLength;
+    this.servicePatterns = env_oss.servicePatterns;
+  }
+
   ngOnInit() {
     this.getData();
+    this.loadMaxLength();
     if(env_oss.slack_support) this.SlackEnabled=true;
   };
     // cron validation related functions //
