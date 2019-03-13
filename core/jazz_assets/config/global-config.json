@@ -35,6 +35,7 @@
     "iam_role",
     "sqs",
     "kinesis_stream",
+    "apigee_proxy",
     "cdn_endpoint_url",
     "cdn_endpoint",
     "origin_endpoint_url",
